@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 from time import time
 import os
-from utils import set_color,delete_file
+from preprocessors.utils import set_color,delete_file,get_logger
 import heapq
 from tqdm import tqdm
 from transformers import get_linear_schedule_with_warmup, get_constant_schedule_with_warmup
@@ -37,6 +37,8 @@ class Trainer():
         self.optimizer = self._build_optimizer()
         self.scheduler = self._get_scheduler()
         self.model = self.model.to(self.device)
+
+        self.logger = get_logger(prefix='[Trainer]')
         #self.save_limit = config['save_limit']
     def _build_optimizer(self):
 
@@ -130,7 +132,7 @@ class Trainer():
         }        
         torch.save(state,ckpt_path,pickle_protocol=4)
 
-        print(f"save checkpoint to {ckpt_path}")
+        self.logger.info(f"save checkpoint to {ckpt_path}")
         return ckpt_path
     def _generate_train_loss_output(self, epoch_idx, s_time, e_time, loss, recon_loss):
         train_loss_output = (
@@ -153,7 +155,7 @@ class Trainer():
             train_loss_output = self._generate_train_loss_output(
                 epoch_idx,training_start_time,training_end_time,train_loss,train_recon_loss
             )
-            print(train_loss_output)
+            self.logger.info(train_loss_output)
 
             if (epoch_idx + 1) % self.eval_step==0:
                 valid_start_time = time()
@@ -178,7 +180,7 @@ class Trainer():
                     + ": %f]"
                 ) % (epoch_idx, valid_end_time - valid_start_time, collision_rate)
 
-                print(valid_score_output)
+                self.logger.info(valid_score_output)
                 ckpt_path = self._save_checkpoint(epoch_idx, collision_rate=collision_rate)
                 now_save = (-collision_rate, ckpt_path)
                 if len(self.newest_save_queue) < self.save_limit:

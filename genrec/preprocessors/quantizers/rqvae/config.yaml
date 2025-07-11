@@ -3,7 +3,7 @@ e_dim: 128
 in_dim: 768
 layers: [512,256,128]
 kmeans_init: True
-kmeans_data: 'E:\develop\AI\test\cache\processed\Sports_and_Outdoors\emb.npy'
+
 loss_type: 'mse'
 mu: 0.01
 beta: 0.25
@@ -23,3 +23,5 @@ weight_decay: 0.0001
 device: "cuda:0"
 save_limit: 5
 ckpt_dir: './ckpt/Sports_and_Outdoors'
+
+log_path: './train.log'

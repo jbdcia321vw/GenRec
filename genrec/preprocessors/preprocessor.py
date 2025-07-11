@@ -1,21 +1,25 @@
 import os
 from collections import defaultdict
 import json
-from utils import yield_json
+from utils import get_logger,yield_gzip,download_file
 from sentence_transformers import SentenceTransformer
 import torch
 import numpy as np
 from importlib import import_module
 import yaml
-class Tokenizer():
+class Preprocessor():
     def __init__(self,config):
         self.config=config
         self.device = torch.device(config['device'])
         self.cache = config['cache']
         self.dataset_name = config['dataset_name']
+        self.raw_url = {
+            'inter': f'https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_{self.dataset_name}_5.json.gz',
+            'meta': f'https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_{self.dataset_name}.json.gz'
+        }
         self.raw_file_path = {
-            'meta':os.path.join(self.cache,'raw',f'meta_{self.dataset_name}.json'),
-            'inter':os.path.join(self.cache,'raw',f'{self.dataset_name}_5.json')
+            'meta':os.path.join(self.cache,'raw',self.dataset_name,f'meta_{self.dataset_name}.json.gz'),
+            'inter':os.path.join(self.cache,'raw',self.dataset_name,f'{self.dataset_name}_5.json.gz')
         }
         self.processed_file_path = {
             'meta':os.path.join(self.cache,'processed',f'{self.dataset_name}/meta.json'),
@@ -30,7 +34,10 @@ class Tokenizer():
             'asin2id':dict(),
             'id2asin':list()
         }
+        self.logger = get_logger(prefix='[Preprocessor]')
 
+
+        
 
     
     def _convert_feat(self,feat):
@@ -40,9 +47,16 @@ class Tokenizer():
             return ','.join(feat[0]).strip()#convert categories to string
         else:
             return str(feat.strip())
+    def _load_raw(self):
+        os.makedirs(os.path.join(self.cache,'raw',self.dataset_name),exist_ok=True)
+        if os.path.exists(self.raw_file_path['meta'] and self.raw_file_path['inter']):
+            self.logger.info(f'raw file exists, load from {self.raw_file_path}')
+            return
+        download_file(self.raw_url['meta'],self.raw_file_path['meta'])
+        download_file(self.raw_url['inter'],self.raw_file_path['inter'])
     def _process_meta(self,file_path):
         meta = defaultdict(dict)
-        for item in yield_json(file_path):
+        for item in yield_gzip(file_path):
             text = {}
             for col in item:
                 if col in self.feat_cols:
@@ -52,7 +66,7 @@ class Tokenizer():
             json.dump(meta,f,indent=4)
     def _process_inter(self,file_path):
         inters = defaultdict(list)
-        for inter in yield_json(file_path):
+        for inter in yield_gzip(file_path):
             reviewerID = inter['reviewerID']
             asin = inter['asin']
             reviewTime = inter['reviewTime']
@@ -67,16 +81,16 @@ class Tokenizer():
             json.dump(inters,f,indent=4)
     def _process_raw(self):
         if os.path.exists(self.processed_file_path['meta']) and os.path.exists(self.processed_file_path['inter']):
-            print('raw file exists, skip processing')
+            self.logger.info('raw file exists, skip processing')
             return
         self._process_meta(self.raw_file_path['meta'])
         self._process_inter(self.raw_file_path['inter'])
     def _build_map(self):
         if os.path.exists(self.processed_file_path['maps']):
-            print('map file exists, load from ',self.processed_file_path['maps'])
+            self.logger.info('map file exists, load from {}'.format(self.processed_file_path['maps']))
             self.maps = json.load(open(self.processed_file_path['maps'],'r'))
             return
-        for item in yield_json(self.raw_file_path['meta']):
+        for item in yield_gzip(self.raw_file_path['meta']):
             asin = item['asin']
             self.maps['asin2id'][asin] = len(self.maps['id2asin'])
             self.maps['id2asin'].append(asin)
@@ -84,7 +98,7 @@ class Tokenizer():
             json.dump(self.maps,f,indent=4)
     def _build_emb(self):
         if os.path.exists(self.processed_file_path['emb']):
-            print('embedding file exists, skip building')
+            self.logger.info('embedding file exists, skip building')
             return
         item_meta = []
         with open(self.processed_file_path['meta']) as f:
@@ -94,9 +108,9 @@ class Tokenizer():
         model = SentenceTransformer(os.path.join(self.cache,'models',self.model_name),device=torch.device(self.config['device']))
         embeddings = model.encode(item_meta,batch_size=self.config['batch_size'],show_progress_bar=self.config['show_progress_bar'],convert_to_numpy=True,device=torch.device(self.config['device']))
         np.save(self.processed_file_path['emb'],embeddings)
-    def _quantize(self):
+    def quantize(self):
         if os.path.exists(self.processed_file_path['indices']):
-            print('indices file exists, skip quantizing')
+            self.logger.info('indices file exists, skip quantizing')
             return
 
         embeddings = np.load(self.processed_file_path['emb'])
@@ -118,6 +132,7 @@ class Tokenizer():
         json.dump(all_indices,open(self.processed_file_path['indices'],'w'),indent=4)
     def init(self):
         os.makedirs(os.path.join(self.cache,'processed',self.dataset_name),exist_ok=True)
+        self._load_raw()
         self._build_map()
         self._process_raw()
         self._build_emb()
