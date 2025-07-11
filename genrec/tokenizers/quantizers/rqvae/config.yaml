@@ -1,0 +1,25 @@
+codebook_size: [224,224,224,224]
+e_dim: 128
+in_dim: 768
+layers: [512,256,128]
+kmeans_init: True
+kmeans_data: 'E:\develop\AI\test\cache\processed\Sports_and_Outdoors\emb.npy'
+loss_type: 'mse'
+mu: 0.01
+beta: 0.25
+kmeans_iters: 100
+metric_list: ['euclidean','euclidean','euclidean','euclidean']
+dropout_prob: 0.0
+bn: True
+
+lr: 0.001
+epochs: 3000
+batch_size: 1024
+eval_step: 1
+optimizer: "AdamW"
+lr_scheduler_type: 'linear'
+warmup_epochs: 50
+weight_decay: 0.0001
+device: "cuda:0"
+save_limit: 5
+ckpt_dir: './ckpt/Sports_and_Outdoors'

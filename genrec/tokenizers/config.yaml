@@ -1,0 +1,11 @@
+cache: '../../cache/'
+dataset_name: 'Sports_and_Outdoors'
+feat_cols: ['title','brand','categories']
+embedding_model_name: 'sentence-t5-base'
+batch_size: 32
+show_progress_bar: True
+device: 'cuda'
+quantizer_ckpt_path: './ckpt/Sports_and_Outdoors/1752128920/epoch_22_collision_0.5414.pth'
+quantizer_config: './quantizers/rqvae/config.yaml'
+quantizer_module: 'rqvae/rqvae/'
+quantizer_class: 'RQVAE'
